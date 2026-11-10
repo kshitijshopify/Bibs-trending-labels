@@ -1,6 +1,6 @@
 # BIBS Trending labels: how the app works
 
-This app keeps the `label:Trending` tag on the right products in the BIBS B2B DIST store. Every night it finds the best-selling products in three categories and puts the tag on them. It takes the tag off products that no longer qualify. Then it emails a report of what changed.
+This app keeps the `label:Trending` tag on the right products in every BIBS store that has the app installed (each store separately). Every night it finds the best-selling products in three categories and puts the tag on them. It takes the tag off products that no longer qualify. Then it emails a report of what changed.
 
 The first part of this guide is for everyone who uses the app. The second part, from "Technical reference" on, is for developers.
 
@@ -215,7 +215,7 @@ The tag cannot be a Bulk marker or a season tag, and it cannot contain a comma. 
 ```text
 Render cron (00:00 + 01:00 UTC)
   └─ POST /api/cron/nightly  (Bearer BESTSELLER_CRON_SECRET)
-       └─ per shop in BESTSELLER_CRON_SHOPS: is it 02:00 in Copenhagen?
+       └─ per installed store (BESTSELLER_CRON_SHOPS=*): is it 02:00 in Copenhagen?
             ├─ bulk export of all products   (read_products)
             ├─ ShopifyQL sales report         (read_reports)
             ├─ engine: rank, seasons, selection, add/remove/keep  (pure, deterministic)
@@ -250,7 +250,7 @@ A tag is only changed when **all** of these are true. Each missing condition is 
 
 1. Settings → **Store updates** is on (in the app, per shop; off by default).
 2. `BESTSELLER_APPLY_ENABLED=true` (server environment).
-3. The shop is listed in `BESTSELLER_APPLY_ALLOWED_SHOPS`.
+3. The shop is allowed by `BESTSELLER_APPLY_ALLOWED_SHOPS` (`*` allows every installed store).
 4. The app has been granted `write_products`.
 5. The run read everything completely, and the list is approved (Fully automatic approves the nightly list itself).
 
@@ -272,21 +272,25 @@ A tag is only changed when **all** of these are true. Each missing condition is 
 
 ## 15. Environment variables
 
-| Variable | Purpose | Default |
+On Render only these are set: `SCOPES`, `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL` and `BESTSELLER_CRON_SECRET`. Every other variable is optional. **Not set** means the default in the last column. **Set** (even to an empty value) always wins, so a default can be overridden without a code change. `.env.example` lists them all, commented out with their defaults; the local `.env` only sets `DATABASE_URL`, `BESTSELLER_ALLOW_TIMEZONE_MISMATCH` (the dev store is not on Copenhagen time) and the cron secret.
+
+| Variable | Purpose | Default when not set |
 | --- | --- | --- |
-| `DATABASE_URL` | SQLite file (`file:/var/data/prod.sqlite` on Render) | none |
-| `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL`, `SCOPES` | Standard Shopify app settings | set by the CLI locally |
+| `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL`, `SCOPES` | Standard Shopify app settings | required on Render; set by the CLI locally |
+| `BESTSELLER_CRON_SECRET` | Bearer secret for the nightly endpoint, at least 24 characters | required for the nightly run |
+| `DATABASE_URL` | SQLite file | `/var/data/prod.sqlite` if a disk is mounted at `/var/data` (Render), else `prisma/dev.sqlite` |
 | `BESTSELLER_LABEL_TAG` | Tag used before one is chosen in Settings | `label:Trending` |
-| `BESTSELLER_APPLY_ENABLED` | Server switch for store changes | `false` |
-| `BESTSELLER_APPLY_ALLOWED_SHOPS` | Shops that may be changed (comma separated) | empty |
-| `BESTSELLER_FLOW_TRIGGER_ENABLED` | Send the email events to Flow | `false` |
-| `BESTSELLER_APPROVAL_SECRET` | Signs the email links (falls back to `SHOPIFY_API_SECRET`) | empty |
-| `BESTSELLER_CRON_SHOPS` | Shops processed by the nightly endpoint | empty |
-| `BESTSELLER_CRON_SECRET` | Bearer secret for the nightly endpoint, at least 24 characters | empty |
+| `BESTSELLER_APPLY_ENABLED` | Server switch for store changes (`false` stops all of them) | `true` (each store's in-app switch is still off by default) |
+| `BESTSELLER_APPLY_ALLOWED_SHOPS` | Shops that may be changed: `*` = every installed store, or a comma-separated list; empty = none | `*` |
+| `BESTSELLER_FLOW_TRIGGER_ENABLED` | Send the email events to Flow | `true` |
+| `BESTSELLER_APPROVAL_SECRET` | Signs the email links | `SHOPIFY_API_SECRET` |
+| `BESTSELLER_CRON_SHOPS` | Shops processed by the nightly endpoint: `*` = every installed store (from the app sessions), or a list; empty = none | `*` |
 | `BESTSELLER_ALLOW_TIMEZONE_MISMATCH` | Development only: allow a store not on Copenhagen time (with a warning) | `false` |
 | `BESTSELLER_DEV_WINDOW_INCLUDE_TODAY` | Development only: include today's sales | `false` |
 
-The cron job itself needs `BESTSELLER_APP_URL` and `BESTSELLER_CRON_SECRET` (see `scripts/trigger-nightly.mjs` and `render.yaml`).
+The cron job needs `SHOPIFY_APP_URL` (or `BESTSELLER_APP_URL`) and `BESTSELLER_CRON_SECRET`, with the same values as the web service (see `scripts/trigger-nightly.mjs`). The Node version comes from `.node-version`.
+
+**Why a database is needed:** the nightly run happens while nobody has the app open, so it needs each store's stored offline token (and its refresh token). The database also keeps the per-store settings and the Store updates switch, the tag changes that **Undo** reverses, the History page, approvals, which emails were already sent, and the lock that stops two runs overlapping. It is the Prisma SQLite file on the Render disk, so no separate database service is needed.
 
 ## 16. Shopify setup
 
@@ -300,52 +304,72 @@ The cron job itself needs `BESTSELLER_APP_URL` and `BESTSELLER_CRON_SECRET` (see
   - `bestseller-preview-ready`: one event per category plus cleanup, for separate emails.
   - `bestseller-daily-summary`: one event with everything, for one combined email.
   - Custom-app Flow triggers only work on **Shopify Plus** stores. BIBS is on Plus; the development store is not.
-- **Workflows:** created in Shopify Flow on the BIBS store, as **new** workflows: trigger, then "Send internal email". Pick the triggers that belong to **Bibs Trending Labels**: each app has its own triggers, so workflows built for another app do not receive these events. The existing email-preview workflow is not changed. Email templates are in `BESTSELLER.md`.
+- **Workflows:** created in Shopify Flow on **each** live store, as **new** workflows: trigger, then "Send internal email". Pick the triggers that belong to **Bibs Trending Labels**: each app has its own triggers, so workflows built for another app do not receive these events. The existing email-preview workflow is not changed. Email templates are in `BESTSELLER.md`.
 
 ## 17. Go-live checklist (Render + live store)
 
 ### A. Partner Dashboard, app "Bibs Trending Labels"
 
-1. Distribution: custom distribution, for the BIBS store only.
+1. Distribution: **custom distribution** with **Allow multi-store installs for one Plus organization** ticked. One app can serve both live stores only if both belong to the same Plus organization; otherwise it needs public (unlisted) distribution.
 2. **API access requests → Run bulk operations → Allow bulk queries.** Without it, every run fails with "Access denied for bulkOperationRunQuery field". Shopify switches it off again if the app runs no bulk query for 31 days.
 3. **API access requests → Protected customer data:** declare **Level 2** (needed by `read_reports` for ShopifyQL sales).
 
 ### B. Render
 
-1. Push this folder to its own Git repository, then in Render: **New → Blueprint** and select it. `render.yaml` creates:
-   - `bibs-trending-labels`: web service, Starter plan, Frankfurt, 1 GB disk at `/var/data`.
-   - `bibs-trending-labels-nightly`: cron job at 00:00 and 01:00 UTC.
-2. Render asks for the `sync: false` values:
+Push this folder to its own Git repository. Then either use **New → Blueprint** (`render.yaml` creates both services), or create them by hand:
 
-   | Variable | Value |
-   | --- | --- |
-   | `SHOPIFY_API_KEY` | Client ID of Bibs Trending Labels (`2cc34a6b…`, see `shopify.app.toml`) |
-   | `SHOPIFY_API_SECRET` | Client secret of Bibs Trending Labels (Dev Dashboard) |
-   | `SHOPIFY_APP_URL` | `https://bibs-trending-labels.onrender.com` (the service URL, no trailing slash) |
-   | `BESTSELLER_APPLY_ALLOWED_SHOPS` | `<bibs-store>.myshopify.com` |
-   | `BESTSELLER_CRON_SHOPS` | `<bibs-store>.myshopify.com` |
-   | `BESTSELLER_APP_URL` (cron job) | Same URL as `SHOPIFY_APP_URL` |
+**1. Web Service** `bibs-trending-labels`
 
-   `BESTSELLER_APPROVAL_SECRET` and `BESTSELLER_CRON_SECRET` are generated by Render, and the cron job copies the cron secret from the web service.
-3. If Render shows a different URL than `https://bibs-trending-labels.onrender.com`, put that URL in `shopify.app.toml` (`application_url` and `redirect_urls`), `SHOPIFY_APP_URL` and `BESTSELLER_APP_URL`.
-4. Wait until the web service is live and `/` answers.
+| Setting | Value |
+| --- | --- |
+| Runtime | Node (version from `.node-version`) |
+| Build command | `npm install --include=dev && npm run build` |
+| Start command | `npm run setup && npm run start` (applies the database migrations, then starts) |
+| Instance type | Starter or higher (a disk needs a paid instance) |
+| Disk | Mount path `/var/data`, 1 GB. **Required**: without it sessions, settings and history are lost on every deploy. |
+| Health check path | `/` |
+
+Environment (nothing else):
+
+| Variable | Value |
+| --- | --- |
+| `SCOPES` | `read_products,read_reports,write_products` (same as `shopify.app.toml`) |
+| `SHOPIFY_API_KEY` | Client ID of Bibs Trending Labels (`2cc34a6b…`, see `shopify.app.toml`) |
+| `SHOPIFY_API_SECRET` | Client secret of Bibs Trending Labels |
+| `SHOPIFY_APP_URL` | `https://bibs-trending-labels.onrender.com` (the service URL, no trailing slash) |
+| `BESTSELLER_CRON_SECRET` | A random value of at least 24 characters, e.g. from `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+
+**2. Cron Job** `bibs-trending-labels-nightly` (same repository)
+
+| Setting | Value |
+| --- | --- |
+| Schedule | `0 0,1 * * *` (00:00 and 01:00 UTC; the app picks the one that is 02:00 Copenhagen) |
+| Build command | `true` (nothing to install) |
+| Command | `node scripts/trigger-nightly.mjs` |
+| Environment | `SHOPIFY_APP_URL` and `BESTSELLER_CRON_SECRET`, same values as the web service |
+
+No store domain is entered anywhere: every store that installs the app is processed automatically, and a store drops out when it uninstalls.
+
+**3.** If Render gives a different URL than `https://bibs-trending-labels.onrender.com`, put that URL in `shopify.app.toml` (`application_url` and `redirect_urls`) and in `SHOPIFY_APP_URL` on both services.
+
+**4.** Wait until the web service is live and `/` answers. The deploy log shows `[setup] Database: file:/var/data/prod.sqlite`; if it shows `file:dev.sqlite`, the disk is missing.
 
 ### C. Shopify
 
 1. In this folder: `shopify app deploy`. This releases the app config (URL, scopes, webhooks) and the two Flow triggers.
-2. Install the app on the BIBS store from the custom distribution install link, and accept the permissions.
-3. Open the app once. Settings shows the automation status. **Store updates is off**, so nothing in the store changes yet.
-4. In Shopify Flow, build the new email workflows on the Bibs Trending Labels triggers (section 16). Turn them on when the email text is right.
+2. Install the app on **both** live stores from the custom distribution install link, and accept the permissions.
+3. Open the app once in each store. Settings shows the automation status. **Store updates is off** in both, so nothing changes yet. Each store has its own settings (tag, sales period, update mode, email format), runs and history. Both stores must be on the Europe/Copenhagen time zone, or their runs fail the time zone check.
+4. In Shopify Flow on each store, build the new email workflows on the Bibs Trending Labels triggers (section 16). Turn them on when the email text is right. Flow triggers from a custom app only work on Plus stores.
 
 ### D. Switching on
 
 1. Let the nightly run send emails for a few nights with **Store updates** off. Check the emails and the Tag list.
-2. Switch **Store updates** on in Settings. From the next night, tags change automatically. **Apply now** applies the current list at once.
+2. Switch **Store updates** on in Settings, separately in each store. From the next night, tags change automatically in that store. **Apply now** applies the current list at once.
 3. To stop at any time, switch **Store updates** off. It takes effect immediately, with no deploy needed.
 
 Notes:
 
-- `BESTSELLER_FLOW_TRIGGER_ENABLED` and `BESTSELLER_APPLY_ENABLED` are `true` in `render.yaml`. Values with `value:` are reset on every Blueprint sync, so change them in `render.yaml`, not in the Render dashboard.
+- To stop all store changes in every store at once, add `BESTSELLER_APPLY_ENABLED=false` on the web service. To stop the email events, add `BESTSELLER_FLOW_TRIGGER_ENABLED=false`.
 - Do not deploy the web service between 00:00 and 01:30 UTC (the nightly run). With a disk, every deploy has a short downtime.
 - The database is the SQLite file `/var/data/prod.sqlite` on the disk. It survives deploys and restarts. Render takes daily disk snapshots.
 

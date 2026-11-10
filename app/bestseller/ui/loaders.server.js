@@ -1,7 +1,7 @@
 // Shared server-side helpers for the dashboard pages.
 import { SCHEDULE, TIME_ZONE } from "../config.js";
 import { getSettings } from "../env.server.js";
-import { applyGuard } from "../jobs/guards.js";
+import { applyGuard, shopListed } from "../jobs/guards.js";
 import { prismaRepo } from "../jobs/repo.server.js";
 import { nextNightlyRunLabel, tagListView } from "../report/views.js";
 
@@ -67,7 +67,7 @@ export async function loadLatestView(shop) {
 export function automationStatus(shop, grantedScopes, storeUpdates = false) {
   const settings = getSettings();
   const server = applyGuard({ settings, shop, grantedScopes, runSucceeded: true, storeUpdates: true });
-  const nightly = settings.cronShops.includes(shop) && settings.cronSecret.length >= 24;
+  const nightly = shopListed(settings.cronShops, shop) && settings.cronSecret.length >= 24;
   return {
     storeChanges: storeUpdates === true && server.allowed,
     storeSwitch: storeUpdates === true,

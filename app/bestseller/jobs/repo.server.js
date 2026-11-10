@@ -5,6 +5,16 @@ const parse = (text) => (text ? JSON.parse(text) : null);
 
 /** Prisma (SQLite) implementation of the job repository used by run-job.js. */
 export const prismaRepo = {
+  /** Shops that have installed the app (offline session; removed on uninstall). */
+  async installedShops() {
+    const rows = await prisma.session.findMany({
+      where: { isOnline: false },
+      select: { shop: true },
+      distinct: ["shop"],
+    });
+    return rows.map((r) => r.shop);
+  },
+
   async acquireLock(shop, holder, ttlMs, now) {
     return prisma.$transaction(async (tx) => {
       const existing = await tx.bestsellerJobLock.findUnique({ where: { shop } });

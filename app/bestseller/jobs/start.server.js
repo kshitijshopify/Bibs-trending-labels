@@ -3,6 +3,7 @@ import { approvalUrlFor } from "../approval/links.server.js";
 import { getSettings } from "../env.server.js";
 import { getShopApprovalMode, getShopLabelSetting, getShopRunConfig } from "../settings.server.js";
 import { createGraphqlClient } from "../shopify/graphql.js";
+import { ALL_SHOPS, resolveScheduledShops } from "./guards.js";
 import { prismaRepo } from "./repo.server.js";
 import { startBestsellerRun, triggerScheduledRuns } from "./run-job.js";
 
@@ -48,11 +49,15 @@ export async function startManualRun({ shop, requestedBy, sendFlow = false, appl
   return { started: started.started, runId: started.runId ?? null, reason: started.reason ?? null };
 }
 
-/** Entry point for the external scheduler endpoint. */
+/**
+ * Entry point for the external scheduler endpoint. BESTSELLER_CRON_SHOPS=*
+ * processes every shop that has the app installed (no fixed domains).
+ */
 export async function startScheduledRuns(now = new Date()) {
   const settings = getSettings();
+  const installed = settings.cronShops.includes(ALL_SHOPS) ? await prismaRepo.installedShops() : [];
   return triggerScheduledRuns({
-    shops: settings.cronShops,
+    shops: resolveScheduledShops(settings.cronShops, installed),
     now,
     repo: prismaRepo,
     settings,

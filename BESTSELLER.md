@@ -49,7 +49,7 @@ Store changes need the in-app **Store updates** switch (Settings, off by default
 
 1. **In-app switch.** Settings → **Store updates** is off for every shop until someone switches it on (`BestsellerSetting.storeUpdates`, default `false`). While it is off, the nightly update, **Apply now** and **Undo** change nothing; lists and emails continue. Switching it off takes effect at once and is recorded in History.
 2. **Scopes.** This live app ("Bibs Trending Labels", `shopify.app.toml`) requests `read_products,read_reports,write_products`. `write_products` alone changes nothing; the other layers still apply.
-3. **Flags** (in `.env` or the Render env): `BESTSELLER_APPLY_ENABLED`, `BESTSELLER_APPLY_ALLOWED_SHOPS`, `BESTSELLER_FLOW_TRIGGER_ENABLED`. All default to off.
+3. **Flags** (in `.env` or the Render env): `BESTSELLER_APPLY_ENABLED`, `BESTSELLER_APPLY_ALLOWED_SHOPS`, `BESTSELLER_FLOW_TRIGGER_ENABLED`. When a flag is not set, the live default applies (on, and `*` for every installed store), so Render needs only the Shopify variables and the cron secret. Setting a flag (e.g. `BESTSELLER_APPLY_ENABLED=false`) always wins. `.env.example` lists every optional variable, commented out with its default.
 4. **Completeness.** Any incomplete catalog or sales read fails the run. A failed run sends no Flow events and makes no tag changes.
 5. **No truncation.** If any Flow payload is 50,000 bytes or more, no events are sent at all.
 
@@ -179,7 +179,7 @@ Store updates need all five of these:
 
 - Settings → **Store updates** switched on (in the app, per shop)
 - `BESTSELLER_APPLY_ENABLED=true`
-- The shop listed in `BESTSELLER_APPLY_ALLOWED_SHOPS`
+- The shop allowed by `BESTSELLER_APPLY_ALLOWED_SHOPS` (`*` = every installed store)
 - `write_products` granted to the app
 - An approved list (automatic mode approves the nightly list itself)
 
