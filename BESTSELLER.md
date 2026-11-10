@@ -129,34 +129,60 @@ Settings → **Preview email format** offers three choices: one email per catego
 
 Workflow: trigger "Bestseller daily summary ready", no condition, action "Send internal email".
 
+To: the recipients, comma separated (required).
+
 Subject:
 
 ```liquid
-{{ tag }} daily preview – {% if upToDate %}no changes{% else %}{{ wouldAddCount }} to add, {{ wouldRemoveCount }} to remove{% endif %}
+{{ shop.name }} · {{ tag }} · {% if mode == "applied" %}{{ wouldAddCount }} added, {{ wouldRemoveCount }} removed{% elsif upToDate %}no changes today{% else %}{{ wouldAddCount }} to add, {{ wouldRemoveCount }} to remove{% endif %}
 ```
 
-Body (check the variable names with **Add a variable**; Flow converts keys to camelCase):
+Body. Flow only accepts fields that exist in the trigger: list properties such as `.size` are rejected ("size is invalid"), so each section prints its heading on the first product (`forloop.first`) and is left out when the list is empty. Check the variable names with **Add a variable**; Flow converts keys to camelCase.
 
 ```liquid
-{{ status }}
-Tag: {{ tag }}
-Sales window: {{ salesWindow }}
-{{ summary.summaryLine }}
-{% for c in summary.categories %}
-== {{ c.category }} · newest launch {{ c.season }} ({{ c.seasonSource }}) · {{ c.selected.size }} of {{ c.target }} selected{% if c.shortfall > 0 %} (shortfall {{ c.shortfall }}){% endif %} ==
-{% for p in c.selected %}{{ forloop.index }}. {{ p.title }}: {{ p.netUnits }} units{% if p.pickedAs == "launch-reserved" %} (newest launch){% endif %}
-{% endfor %}{% if c.wouldAdd.size > 0 %}{% if mode == "applied" %}Tag added{% else %}Gets the tag{% endif %}: {% for p in c.wouldAdd %}{{ p.title }}{% unless forloop.last %}, {% endunless %}{% endfor %}
-{% endif %}{% if c.wouldRemove.size > 0 %}{% if mode == "applied" %}Tag removed{% else %}Loses the tag{% endif %}: {% for p in c.wouldRemove %}{{ p.title }} ({{ p.reasons | join: ", " }}){% unless forloop.last %}; {% endunless %}{% endfor %}
-{% endif %}{% if c.wouldAdd.size == 0 and c.wouldRemove.size == 0 %}No changes in this category.
-{% endif %}{% endfor %}
-== Outside the categories ==
-Bulk products ({% if mode == "applied" %}tag removed{% else %}tag will be removed{% endif %}): {% for p in summary.cleanup %}{{ p.title }}{% unless forloop.last %}, {% endunless %}{% else %}none{% endfor %}
-Please review (tag stays): {% for p in summary.review %}{{ p.title }}{% unless forloop.last %}, {% endunless %}{% else %}none{% endfor %}
+Hello,
 
-{% if mode == "applied" %}These changes were made in the store. All other tags were left unchanged.
-{% elsif upToDate %}Nothing to approve today.
-{% else %}Preview only: nothing has been changed.
-Approve or reject this list (valid 48 hours): {{ approvalLink }}{% endif %}
+{{ summary.summaryLine }}
+
+Store: {{ shop.name }}
+Status: {{ status }}
+Tag: {{ tag }}
+Sales period: {{ salesWindow }}
+Totals: {{ wouldAddCount }} add · {{ wouldRemoveCount }} remove · {{ wouldKeepCount }} keep
+{% for c in summary.categories %}
+
+----------------------------------------
+{{ c.category }}: {{ c.target }} places{% if c.shortfall > 0 %} ({{ c.shortfall }} could not be filled){% endif %}
+Newest launch: {{ c.season }}
+----------------------------------------
+{% for p in c.selected %}{{ forloop.index }}. {{ p.title }} - {{ p.netUnits }} sold{% if p.pickedAs == "launch-reserved" %} (newest launch){% endif %}
+{% endfor %}{% for p in c.wouldAdd %}{% if forloop.first %}
+{% if mode == "applied" %}Tag added:{% else %}Gets the tag:{% endif %}
+{% endif %}  + {{ p.title }}
+{% endfor %}{% for p in c.wouldRemove %}{% if forloop.first %}
+{% if mode == "applied" %}Tag removed:{% else %}Loses the tag:{% endif %}
+{% endif %}  - {{ p.title }} ({{ p.reasons | join: ", " }})
+{% endfor %}{% endfor %}{% for p in summary.cleanup %}{% if forloop.first %}
+
+----------------------------------------
+Bulk products: {% if mode == "applied" %}tag removed{% else %}tag will be removed{% endif %}
+----------------------------------------
+{% endif %}  - {{ p.title }}
+{% endfor %}{% for p in summary.review %}{% if forloop.first %}
+
+----------------------------------------
+Please check: tagged, but the product type is in no category (tag stays)
+----------------------------------------
+{% endif %}  * {{ p.title }}
+{% endfor %}
+
+{% if mode == "applied" %}These changes were made in the store. No other tags were touched.
+Something wrong? Undo this update (link valid 48 hours):
+{{ approvalLink }}{% elsif upToDate %}Nothing changes today.{% else %}Preview only: nothing has been changed in the store yet.
+Review the list (link valid 48 hours):
+{{ approvalLink }}{% endif %}
+
+Bibs Trending Labels
 ```
 
 The app's technical report shows the same email as plain text under "Preview emails → One combined email".

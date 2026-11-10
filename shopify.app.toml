@@ -37,7 +37,6 @@ api_version = "2026-10"
 redirect_urls = [ "https://bibs-trending-labels.onrender.com/api/auth" ]
 
 [build]
-include_config_on_deploy = true
 # `shopify app dev` swaps the app URL for the local tunnel on the chosen dev
 # store only (dev preview). Other stores, including the live store, keep the
 # Render URL of the released version.
