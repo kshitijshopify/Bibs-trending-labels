@@ -1,0 +1,89 @@
+# App-provided Flow trigger. One event per category (Pacifiers, Bottles,
+# Accessories) plus one "Cleanup and review" event per run. Build one Flow
+# workflow per category with the condition  Category == "<name>".
+#
+# Field keys may contain only letters and spaces, and every field is sent on
+# every event (see app/bestseller/flow/payload.js).
+[[extensions]]
+name = "Bestseller preview ready"
+type = "flow_trigger"
+handle = "bestseller-preview-ready"
+uid = "71b4b67e-5863-cdbe-f63c-d780e3c8a5ed7ad9dc6e"
+description = "Sent after each bestseller calculation: one event per category plus one cleanup and review event. Preview only, no product changes."
+schema = "./schema.graphql"
+
+[settings]
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Run ID"
+  description = "ID of the calculation run in the Bibs Trending Labels app"
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Event type"
+  description = "category or cleanup"
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Category"
+  description = "Pacifiers, Bottles, Accessories, or Cleanup and review"
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Mode"
+  description = "preview (approval needed, nothing changed) or applied (changes were made in the store)"
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Status"
+  description = "One line for the email, e.g. Preview: approval needed, or Applied: 12 change(s) made"
+
+  [[settings.fields]]
+  type = "url"
+  key = "Approval link"
+  description = "Opens the page where the merchant approves or rejects this list (valid for 48 hours)"
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Sales window"
+  description = "Exact sales window boundaries in Europe/Copenhagen"
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Season"
+  description = "Chosen newest eligible launch, e.g. AW27, or None"
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Season source"
+  description = "plain, label, or none"
+
+  [[settings.fields]]
+  type = "number_decimal"
+  key = "Selected count"
+
+  [[settings.fields]]
+  type = "number_decimal"
+  key = "Target count"
+
+  [[settings.fields]]
+  type = "number_decimal"
+  key = "Shortfall"
+
+  [[settings.fields]]
+  type = "number_decimal"
+  key = "Would add count"
+
+  [[settings.fields]]
+  type = "number_decimal"
+  key = "Would remove count"
+
+  [[settings.fields]]
+  type = "number_decimal"
+  key = "Would keep count"
+
+  [[settings.fields]]
+  type = "schema.CategoryPreview"
+  key = "Report"
+  description = "Full preview: selected products with sales, proposed changes, cleanup and review lists"

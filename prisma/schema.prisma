@@ -1,0 +1,173 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
+// enough when changing adapters.
+// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
+// Local dev: DATABASE_URL="file:dev.sqlite" (relative to this folder) in .env
+// Render:    DATABASE_URL="file:/var/data/prod.sqlite" (persistent disk)
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+// One row per bestseller calculation (nightly or manual). JSON columns are
+// stored as text because SQLite has no JSON type.
+model BestsellerRun {
+  id           String    @id @default(cuid())
+  shop         String
+  trigger      String // "schedule" | "manual"
+  mode         String // "preview" | "apply"
+  localDate    String // Copenhagen calendar date of the run, YYYY-MM-DD
+  status       String // RUNNING | SUCCEEDED | FAILED
+  phase        String?
+  requestedBy  String?
+  options      String?
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+  windowStart  String?
+  windowEnd    String?
+  inputHash    String?
+  resultHash   String?
+  result       String?
+  error        String?
+  logs         String?
+  applySummary String?
+  labelTag     String? // tag this run managed
+  selection    String? // compact snapshot of the selected products (for history)
+  applyStatus  String? // null | RUNNING | DONE | FAILED
+  appliedAt    DateTime?
+
+  flowEvents BestsellerFlowEvent[]
+  tagChanges BestsellerTagChange[]
+
+  @@index([shop, localDate])
+  @@index([shop, startedAt])
+}
+
+// Flow trigger delivery per run and event, so retries never resend.
+model BestsellerFlowEvent {
+  id        String        @id @default(cuid())
+  runId     String
+  run       BestsellerRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  eventKey  String
+  status    String // SENT | FAILED | BLOCKED_PAYLOAD_TOO_LARGE
+  bytes     Int
+  error     String?
+  sentAt    DateTime?
+  updatedAt DateTime      @updatedAt
+
+  @@unique([runId, eventKey])
+}
+
+// Audit trail of tag changes (only written once updates are approved and enabled).
+model BestsellerTagChange {
+  id         String        @id @default(cuid())
+  runId      String
+  run        BestsellerRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  productId  String
+  action     String // add | remove
+  scope      String // category key or "cleanup"
+  status     String // APPLIED | NOOP | SKIPPED | FAILED
+  message    String?
+  tagsBefore String?
+  tagsAfter  String?
+  createdAt  DateTime      @default(now())
+
+  @@index([runId])
+}
+
+// Per-shop settings chosen in the dashboard (fallback: env, then defaults).
+model BestsellerSetting {
+  shop         String   @id
+  labelTag     String
+  approvalMode    String   @default("automatic") // automatic | manual
+  emailFormat     String   @default("separate") // separate | combined | both
+  salesWindowDays Int      @default(30) // length of the sales period
+  storeUpdates    Boolean  @default(false) // in-app switch: may the app change product tags?
+  updatedBy    String?
+  updatedAt    DateTime @updatedAt
+}
+
+// Approval decisions per run (app button, email link, or automatic mode).
+model BestsellerApproval {
+  id       String   @id @default(cuid())
+  shop     String
+  runId    String
+  decision String // approved | rejected
+  via      String // app | email | automatic
+  by       String?
+  note     String?
+  at       DateTime @default(now())
+
+  @@index([shop, runId])
+}
+
+// History shown on the History page: products joining/leaving the list,
+// tags actually added/removed (after approval), and setting changes.
+model BestsellerEvent {
+  id        String   @id @default(cuid())
+  shop      String
+  at        DateTime @default(now())
+  kind      String // joined | left | tag_added | tag_removed | setting
+  tag       String
+  runId     String?
+  localDate String?
+  productId String?
+  legacyId  String?
+  title     String?
+  category  String?
+  netUnits  Int?
+  detail    String?
+
+  @@index([shop, at])
+}
+
+// The current list per shop and tag: which products are in it and since when.
+// Each run compares its selection with this table, so the history records a
+// product only when it really joins or leaves (never twice in a row).
+model BestsellerListMember {
+  shop          String
+  tag           String
+  productId     String
+  legacyId      String
+  title         String
+  category      String
+  since         DateTime @default(now())
+  sinceRunId    String?
+  lastSeenRunId String?
+
+  @@id([shop, tag, productId])
+}
+
+// Prevents overlapping runs for a shop.
+model BestsellerJobLock {
+  shop       String   @id
+  holder     String
+  acquiredAt DateTime
+  expiresAt  DateTime
+}

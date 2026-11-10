@@ -1,0 +1,44 @@
+# LIVE app "Bibs Trending Labels" for BIBS B2B DIST, hosted on Render
+# (see render.yaml). Same code as bibs-bestseller-labels-dev.
+#
+# Before the first `shopify app deploy`: if Render gave the web service a
+# different URL than https://bibs-trending-labels.onrender.com, replace it
+# below (application_url and redirect_urls) and in SHOPIFY_APP_URL on Render.
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "2cc34a6b412a877fe6df69bebcdc1c8d"
+name = "Bibs Trending Labels"
+application_url = "https://bibs-trending-labels.onrender.com"
+embedded = true
+
+[access_scopes]
+# read_products   -> complete catalog read (bulk export)
+# read_reports    -> ShopifyQL sales report (also needs protected customer data
+#                    Level 2 declared in the Dev Dashboard)
+# write_products  -> adding/removing the label tag (apply, Apply now, undo).
+#                    Store changes still need the in-app "Store updates" switch
+#                    (off by default), BESTSELLER_APPLY_ENABLED and
+#                    BESTSELLER_APPLY_ALLOWED_SHOPS.
+# Must be identical to SCOPES in render.yaml.
+scopes = "read_products,read_reports,write_products"
+
+[webhooks]
+api_version = "2026-10"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+[auth]
+redirect_urls = [ "https://bibs-trending-labels.onrender.com/api/auth" ]
+
+[build]
+include_config_on_deploy = true
+# `shopify app dev` swaps the app URL for the local tunnel on the chosen dev
+# store only (dev preview). Other stores, including the live store, keep the
+# Render URL of the released version.
+automatically_update_urls_on_dev = true

@@ -1,0 +1,68 @@
+# App-provided Flow trigger for ONE combined email: all categories, the
+# cleanup list and the review list in a single event. Use it instead of (or
+# next to) "Bestseller preview ready". Which one the app sends is chosen on
+# the Settings page ("Preview email format").
+#
+# Field keys may contain only letters and spaces, and every field is sent on
+# every event (see app/bestseller/flow/payload.js, buildSummaryEvent).
+[[extensions]]
+name = "Bestseller daily summary ready"
+type = "flow_trigger"
+handle = "bestseller-daily-summary"
+uid = "25c8b32b-a7d2-c2f5-17f3-8e1df9a2cf61849f161b"
+description = "Sent after each bestseller calculation with everything in one event (all categories, cleanup, review) for one combined email."
+schema = "./schema.graphql"
+
+[settings]
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Run ID"
+  description = "ID of the calculation run in the Bibs Trending Labels app"
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Mode"
+  description = "preview (approval needed, nothing changed) or applied (changes were made in the store)"
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Status"
+  description = "One line for the email, e.g. Preview: approval needed, or Applied: 12 change(s) made"
+
+  [[settings.fields]]
+  type = "url"
+  key = "Approval link"
+  description = "Opens the page where the merchant approves or rejects this list (valid for 48 hours)"
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Sales window"
+  description = "Exact sales window boundaries in Europe/Copenhagen"
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Tag"
+  description = "The tag the app manages, e.g. label:BESTSELLER"
+
+  [[settings.fields]]
+  type = "boolean"
+  key = "Up to date"
+  description = "True when nothing has to be added or removed"
+
+  [[settings.fields]]
+  type = "number_decimal"
+  key = "Would add count"
+
+  [[settings.fields]]
+  type = "number_decimal"
+  key = "Would remove count"
+
+  [[settings.fields]]
+  type = "number_decimal"
+  key = "Would keep count"
+
+  [[settings.fields]]
+  type = "schema.DailySummary"
+  key = "Summary"
+  description = "Everything for the email: every category with its products and changes, cleanup and review lists"

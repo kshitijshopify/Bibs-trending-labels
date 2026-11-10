@@ -1,0 +1,83 @@
+"A product line in a bestseller preview"
+type PreviewProduct {
+  "Shopify product ID (GID)"
+  productId: ID!
+  "Product title"
+  title: String!
+  "Product type"
+  productType: String!
+  "Product status"
+  status: String!
+  "Net units sold in the sales window, all variants"
+  netUnits: Int!
+  "Position in the category's sales ranking (eligible products only)"
+  rank: Int
+  "How the product was picked: launch-reserved or sales-ranking"
+  pickedAs: String
+  "Whether the product belongs to the chosen launch season"
+  launch: Boolean!
+  "Reasons for a removal, cleanup or review entry"
+  reasons: [String!]!
+}
+
+"Bestseller preview for one category, or the cleanup and review lists"
+type CategoryPreview {
+  "Category name"
+  category: String!
+  "The label tag being managed, e.g. label:BESTSELLER"
+  labelTag: String!
+  "Calculation run ID"
+  runId: String!
+  "Exact sales window boundaries"
+  salesWindow: String!
+  "Chosen newest eligible launch season, or None"
+  season: String!
+  "plain, label, or none"
+  seasonSource: String!
+  "Total places in the category"
+  target: Int!
+  "Places reserved for the newest launch"
+  reserved: Int!
+  "Reserved places filled from the launch"
+  reservedFilled: Int!
+  "Places that could not be filled"
+  shortfall: Int!
+  "Newer seasons that were skipped, with the reason"
+  skippedSeasons: [String!]!
+  "Selected products in order"
+  selected: [PreviewProduct!]!
+  "Selected products that would receive label:BESTSELLER"
+  wouldAdd: [PreviewProduct!]!
+  "Labeled products that would lose label:BESTSELLER"
+  wouldRemove: [PreviewProduct!]!
+  "Selected products that already have label:BESTSELLER"
+  wouldKeep: [PreviewProduct!]!
+  "Labeled Bulk products outside the mappings (label would be removed)"
+  cleanup: [PreviewProduct!]!
+  "Other labeled products outside the mappings (for review, not removed)"
+  review: [PreviewProduct!]!
+  "Warnings from the calculation"
+  warnings: [String!]!
+}
+
+"Everything from one bestseller calculation, for one combined email"
+type DailySummary {
+  "The label tag being managed, e.g. label:BESTSELLER"
+  labelTag: String!
+  "Calculation run ID"
+  runId: String!
+  "Exact sales window boundaries"
+  salesWindow: String!
+  "True when nothing has to be added or removed"
+  upToDate: Boolean!
+  "One sentence summing up the result"
+  summaryLine: String!
+  "Every category with its selection and proposed changes"
+  categories: [CategoryPreview!]!
+  "Labeled Bulk products outside the mappings (label removed)"
+  cleanup: [PreviewProduct!]!
+  "Other labeled products outside the mappings (for review, not removed)"
+  review: [PreviewProduct!]!
+  "Warnings from the calculation"
+  warnings: [String!]!
+}
